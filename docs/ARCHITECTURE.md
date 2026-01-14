@@ -51,13 +51,13 @@ using the MCP SDK.
 
 ### `gdrive_search`
 
-- Input: `query`, optional `pageToken`, `pageSize`
-- Output: text response with IDs and names, plus pagination hint
+- Input: `query`, optional `pageToken`, `pageSize`, `format`
+- Output: JSON by default (file metadata + `nextPageToken`), or text with `format: "text"`
 
 ### `gdrive_read_file`
 
-- Input: `fileId`, optional `url`, optional `sectionHeading`
-- Output: text response containing file contents (or a section)
+- Input: `fileId`, optional `url`, optional `sectionHeading`, optional `format`
+- Output: JSON by default (file metadata + content), or text with `format: "text"`
   - Google Workspace files are exported to Markdown/CSV/plain text/PNG
   - Other files return text or base64 blobs
 

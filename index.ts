@@ -16,6 +16,7 @@ import {
 } from "./auth.js";
 import { tools } from "./tools/index.js";
 import { InternalToolResponse } from "./tools/types.js";
+import { getFileMetadata, readGoogleDriveFile } from "./tools/gdrive_read_file.js";
 
 const drive = google.drive("v3");
 
@@ -78,18 +79,20 @@ server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   await ensureAuthQuietly();
   const fileId = request.params.uri.replace("gdrive:///", "");
-  const readFileTool = tools[1]; // gdrive_read_file is the second tool
-  const result = await readFileTool.handler({ fileId });
-
-  // Extract the file contents from the tool response
-  const fileContents = result.content[0].text.split("\n\n")[1]; // Skip the "Contents of file:" prefix
+  const metadata = await getFileMetadata(fileId);
+  const result = await readGoogleDriveFile(fileId, metadata);
+  const content = {
+    uri: request.params.uri,
+    mimeType: result.contents.mimeType,
+    ...(result.contents.text
+      ? { text: result.contents.text }
+      : { blob: result.contents.blob || "" }),
+  };
 
   return {
     contents: [
       {
-        uri: request.params.uri,
-        mimeType: "text/plain", // You might want to determine this dynamically
-        text: fileContents,
+        ...content,
       },
     ],
   };

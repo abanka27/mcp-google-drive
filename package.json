@@ -27,7 +27,8 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "bench:tools": "npm run build && node dist/scripts/benchmark-tools.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",

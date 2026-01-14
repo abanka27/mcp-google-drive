@@ -21,6 +21,11 @@ export const schema = {
         description: "Number of results per page (max 100)",
         optional: true,
       },
+      format: {
+        type: "string",
+        description: "Response format: json or text",
+        optional: true,
+      },
     },
     required: ["query"],
   },
@@ -32,6 +37,7 @@ export async function search(
   const drive = google.drive("v3");
   const userQuery = args.query.trim();
   let searchQuery = "";
+  const format = args.format ?? "json";
 
   // If query is empty, list all files
   if (!userQuery) {
@@ -65,15 +71,34 @@ export async function search(
     corpora: 'allDrives',
   });
 
-  const fileList = res.data.files
-    ?.map((file: any) => `${file.id} ${file.name} (${file.mimeType})`)
-    .join("\n");
+  const files = (res.data.files || []).map((file: any) => ({
+    id: file.id,
+    name: file.name,
+    mimeType: file.mimeType,
+    modifiedTime: file.modifiedTime,
+    size: file.size ? Number(file.size) : undefined,
+  }));
 
-  let response = `Found ${res.data.files?.length ?? 0} files:\n${fileList}`;
+  let response: string;
+  if (format === "text") {
+    const fileList = files
+      .map((file) => `${file.id} ${file.name} (${file.mimeType})`)
+      .join("\n");
 
-  // Add pagination info if there are more results
-  if (res.data.nextPageToken) {
-    response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+    response = `Found ${files.length} files:\n${fileList}`;
+
+    if (res.data.nextPageToken) {
+      response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+    }
+  } else {
+    response = JSON.stringify(
+      {
+        files,
+        nextPageToken: res.data.nextPageToken || null,
+      },
+      null,
+      2,
+    );
   }
 
   return {

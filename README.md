@@ -15,7 +15,8 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
     - `query` (string): Search query.
     - `pageToken` (string, optional): Token for the next page of results.
     - `pageSize` (number, optional): Number of results per page (max 100).
-  - **Output**: Returns a text list of matching files, including IDs and MIME types, plus pagination hints when available.
+    - `format` (string, optional): `json` (default) or `text`.
+  - **Output**: Returns structured JSON with file metadata by default. Use `format: "text"` to return a plain text list.
 
 - **gdrive_read_file**
 
@@ -24,7 +25,8 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
     - `fileId` (string): ID of the file to read.
     - `url` (string, optional): Google Docs/Drive URL with heading anchor (for section extraction).
     - `sectionHeading` (string, optional): Heading text to extract a section.
-  - **Output**: Returns the contents of the specified file, or a specific section when requested.
+    - `format` (string, optional): `json` (default) or `text`.
+  - **Output**: Returns structured JSON with file metadata and content by default, or plain text with `format: "text"`.
 
 ### Planned Tools (Not Yet Implemented Here)
 
@@ -57,7 +59,7 @@ The server provides access to Google Drive files:
     - Presentations → Plain text
     - Drawings → PNG
   - Other files are provided in their native format
-  - Resource reads currently return `text/plain` regardless of source MIME type
+  - Resource reads return the exported or native MIME type
 
 ## Getting started
 

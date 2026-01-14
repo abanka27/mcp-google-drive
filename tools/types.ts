@@ -24,10 +24,12 @@ export interface GDriveSearchInput {
   query: string;
   pageToken?: string;
   pageSize?: number;
+  format?: "json" | "text";
 }
 
 export interface GDriveReadFileInput {
   fileId?: string;
   url?: string;
   sectionHeading?: string;
+  format?: "json" | "text";
 }

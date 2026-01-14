@@ -20,6 +20,11 @@ export const schema = {
         type: "string",
         description: "Optional: Heading text to extract a specific section (e.g., '3.1 APIs'). Returns content from this heading until the next heading of same or higher level.",
       },
+      format: {
+        type: "string",
+        description: "Response format: json or text",
+        optional: true,
+      },
     },
     required: ["fileId"],
   },
@@ -72,7 +77,7 @@ function parseGoogleDocsUrl(url: string): { fileId: string | null; headingId: st
 /**
  * Get file metadata (lightweight API call for cache validation)
  */
-async function getFileMetadata(fileId: string): Promise<FileMetadata> {
+export async function getFileMetadata(fileId: string): Promise<FileMetadata> {
   const file = await drive.files.get({
     fileId,
     fields: "mimeType,name,modifiedTime",
@@ -198,13 +203,18 @@ export async function readFile(
 ): Promise<InternalToolResponse> {
   // fileId is required
   const fileId = args.fileId;
+  const format = args.format ?? "json";
   
   if (!fileId) {
+    const errorPayload = format === "json"
+      ? JSON.stringify({ error: "fileId is required" }, null, 2)
+      : "Error: fileId is required";
+
     return {
       content: [
         {
           type: "text",
-          text: "Error: fileId is required",
+          text: errorPayload,
         },
       ],
       isError: true,
@@ -219,11 +229,23 @@ export async function readFile(
     
     // Validate that URL's fileId matches the provided fileId
     if (parsed.fileId && parsed.fileId !== fileId) {
+      const errorPayload = format === "json"
+        ? JSON.stringify(
+            {
+              error: "fileId mismatch",
+              fileId,
+              urlFileId: parsed.fileId,
+            },
+            null,
+            2,
+          )
+        : `Error: fileId mismatch. Provided fileId "${fileId}" does not match URL's fileId "${parsed.fileId}"`;
+
       return {
         content: [
           {
             type: "text",
-            text: `Error: fileId mismatch. Provided fileId "${fileId}" does not match URL's fileId "${parsed.fileId}"`,
+            text: errorPayload,
           },
         ],
         isError: true,
@@ -258,6 +280,35 @@ export async function readFile(
     const { section, headings } = extractSection(result.contents.text, sectionHeading);
     
     if (section) {
+      if (format === "json") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  file: {
+                    id: fileId,
+                    name: metadata.name,
+                    mimeType: metadata.mimeType,
+                    modifiedTime: metadata.modifiedTime,
+                  },
+                  content: result.contents,
+                  section: {
+                    requestedHeading: sectionHeading,
+                    found: true,
+                    content: section,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: false,
+        };
+      }
+
       return {
         content: [
           {
@@ -268,6 +319,35 @@ export async function readFile(
         isError: false,
       };
     } else {
+      if (format === "json") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  file: {
+                    id: fileId,
+                    name: metadata.name,
+                    mimeType: metadata.mimeType,
+                    modifiedTime: metadata.modifiedTime,
+                  },
+                  content: result.contents,
+                  section: {
+                    requestedHeading: sectionHeading,
+                    found: false,
+                    availableHeadings: headings,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: false,
+        };
+      }
+
       return {
         content: [
           {
@@ -280,6 +360,30 @@ export async function readFile(
     }
   }
   
+  if (format === "json") {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              file: {
+                id: fileId,
+                name: metadata.name,
+                mimeType: metadata.mimeType,
+                modifiedTime: metadata.modifiedTime,
+              },
+              content: result.contents,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+      isError: false,
+    };
+  }
+
   return {
     content: [
       {
@@ -291,7 +395,7 @@ export async function readFile(
   };
 }
 
-async function readGoogleDriveFile(
+export async function readGoogleDriveFile(
   fileId: string,
   metadata: FileMetadata,
 ): Promise<{ name: string; contents: FileContent }> {
