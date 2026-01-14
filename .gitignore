@@ -1,0 +1,8 @@
+.env
+/dist
+/node_modules
+
+# auth
+.gdrive-server-credentials.json
+gcp-oauth.keys.json
+
