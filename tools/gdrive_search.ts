@@ -1,9 +1,10 @@
 import { google } from "googleapis";
 import { GDriveSearchInput, InternalToolResponse } from "./types.js";
+import { getOutputFormat } from "./output.js";
 
 export const schema = {
   name: "gdrive_search",
-  description: "Search for files in Google Drive",
+  description: "Search Drive files to find candidate fileIds (not in-doc search).",
   inputSchema: {
     type: "object",
     properties: {
@@ -32,6 +33,7 @@ export async function search(
   const drive = google.drive("v3");
   const userQuery = args.query.trim();
   let searchQuery = "";
+  const format = getOutputFormat();
 
   // If query is empty, list all files
   if (!userQuery) {
@@ -65,15 +67,34 @@ export async function search(
     corpora: 'allDrives',
   });
 
-  const fileList = res.data.files
-    ?.map((file: any) => `${file.id} ${file.name} (${file.mimeType})`)
+  const files = (res.data.files || []).map((file: any) => ({
+    id: file.id,
+    name: file.name,
+    mimeType: file.mimeType,
+    modifiedTime: file.modifiedTime,
+    size: file.size ? Number(file.size) : undefined,
+  }));
+
+  let response: string;
+  if (format === "text") {
+    const fileList = files
+      .map((file) => `${file.id} ${file.name} (${file.mimeType})`)
     .join("\n");
 
-  let response = `Found ${res.data.files?.length ?? 0} files:\n${fileList}`;
+    response = `Found ${files.length} files:\n${fileList}`;
 
-  // Add pagination info if there are more results
   if (res.data.nextPageToken) {
     response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+    }
+  } else {
+    response = JSON.stringify(
+      {
+        files,
+        nextPageToken: res.data.nextPageToken || null,
+      },
+      null,
+      2,
+    );
   }
 
   return {

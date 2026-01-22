@@ -15,16 +15,90 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
     - `query` (string): Search query.
     - `pageToken` (string, optional): Token for the next page of results.
     - `pageSize` (number, optional): Number of results per page (max 100).
-  - **Output**: Returns a text list of matching files, including IDs and MIME types, plus pagination hints when available.
+  - **Output**: Returns structured JSON with file metadata by default. Set `MCP_GDRIVE_OUTPUT_FORMAT=text` to return a plain text list.
 
 - **gdrive_read_file**
 
-  - **Description**: Read contents of a file from Google Drive.
+  - **Description**: Convenience tool to read contents of a file from Google Drive (legacy behavior preserved).
   - **Input**:
     - `fileId` (string): ID of the file to read.
     - `url` (string, optional): Google Docs/Drive URL with heading anchor (for section extraction).
     - `sectionHeading` (string, optional): Heading text to extract a section.
-  - **Output**: Returns the contents of the specified file, or a specific section when requested.
+  - **Output**: Returns structured JSON with file metadata and content by default, or plain text with `MCP_GDRIVE_OUTPUT_FORMAT=text`.
+
+- **gdrive_parse_link**
+
+  - **Description**: Parse a Google Docs URL and extract identifiers.
+  - **Input**:
+    - `url` (string): Google Docs URL to parse.
+  - **Output**: Returns `fileId`, optional `headingId`, and `docType`.
+
+- **gdrive_get_metadata**
+
+  - **Description**: Fetch file metadata and optional headings for Google Docs.
+  - **Input**:
+    - `fileId` (string): ID of the file to inspect.
+    - `includeHeadings` (boolean, optional): Include headings when file is a Google Doc.
+  - **Output**: Returns file metadata, optional `docType`, and optional headings list.
+
+- **gdrive_list_headings**
+
+  - **Description**: List headings for a Google Doc.
+  - **Input**:
+    - `fileId` (string): ID of the Google Doc to inspect.
+    - `minLevel` (number, optional): Minimum heading level to include (e.g., `2` for H2+).
+    - `maxLevel` (number, optional): Maximum heading level to include (e.g., `3` for up to H3).
+  - **Output**: Returns a headings list (with levels) and file metadata.
+
+- **gdrive_read_content**
+
+  - **Description**: Read content explicitly by mode (`full` or `section`).
+  - **Input**:
+    - `fileId` (string): ID of the file to read.
+    - `mode` (string, optional): `full` (default) or `section`.
+    - `sectionHeading` (string, optional): Required when `mode="section"`.
+  - **Output**: Returns file metadata and content, or a specific section when requested.
+
+- **gdrive_download**
+
+  - **Description**: Download content to a local file, returning byte offsets for local paging.
+  - **Input**:
+    - `fileId` (string): ID of the file to read.
+    - `mode` (string, optional): `full` (default) or `section`.
+    - `sectionHeading` (string, optional): Required when `mode="section"`.
+    - `destinationPath` (string, optional): Output path or directory for the download.
+    - `chunkSizeBytes` (number, optional): Chunk size for offsets in bytes.
+  - **Output**: Returns file metadata, download path, and byte offsets for local paging.
+
+### Download directory
+
+The default download directory can be configured via `GDRIVE_DOWNLOAD_DIR`. If not set, downloads go to:
+
+```
+~/.mcp-gdrive/downloads
+```
+
+### Output format
+
+Tool output format is configured globally via environment variable:
+
+```
+MCP_GDRIVE_OUTPUT_FORMAT=json   # default
+MCP_GDRIVE_OUTPUT_FORMAT=text
+```
+
+### Agent Workflow (Docs Link)
+
+1. **Parse** the link with `gdrive_parse_link` to get `fileId` and `headingId`.
+2. **List headings** with `gdrive_list_headings` (use `gdrive_get_metadata` for file metadata).
+3. **Read** with `gdrive_read_content` using `mode="section"` per heading (avoid full reads for large docs).
+
+### Prompts
+
+The server exposes prompt templates to guide agents through common workflows:
+
+- `outline_doc` (args: `url`, optional `minLevel`, `maxLevel`)
+- `read_section_by_heading` (args: `url`, `sectionHeading`)
 
 ### Planned Tools (Not Yet Implemented Here)
 
@@ -47,17 +121,8 @@ This project includes code originally developed by Anthropic, PBC, licensed unde
 
 ### Resources
 
-The server provides access to Google Drive files:
-
-- **Files** (`gdrive:///<file_id>`)
-  - Supports all file types
-  - Google Workspace files are automatically exported:
-    - Docs → Markdown
-    - Sheets → CSV
-    - Presentations → Plain text
-    - Drawings → PNG
-  - Other files are provided in their native format
-  - Resource reads currently return `text/plain` regardless of source MIME type
+The server does not currently expose any `gdrive:///` resources. Access Drive
+content via tools.
 
 ## Getting started
 
@@ -76,6 +141,7 @@ The server provides access to Google Drive files:
 GDRIVE_CREDS_DIR=/path/to/config/directory
 CLIENT_ID=<CLIENT_ID>
 CLIENT_SECRET=<CLIENT_SECRET>
+MCP_GDRIVE_OUTPUT_FORMAT=json
 ```
 
 Make sure to build the server with either `npm run build` or `npm run watch`.
@@ -103,7 +169,8 @@ To integrate this server with the desktop app, add the following to your app's s
       "env": {
         "CLIENT_ID": "<CLIENT_ID>",
         "CLIENT_SECRET": "<CLIENT_SECRET>",
-        "GDRIVE_CREDS_DIR": "/path/to/config/directory"
+        "GDRIVE_CREDS_DIR": "/path/to/config/directory",
+        "MCP_GDRIVE_OUTPUT_FORMAT": "json"
       }
     }
   }

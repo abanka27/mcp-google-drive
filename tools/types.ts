@@ -31,3 +31,32 @@ export interface GDriveReadFileInput {
   url?: string;
   sectionHeading?: string;
 }
+
+export interface GDriveParseLinkInput {
+  url: string;
+}
+
+export interface GDriveGetMetadataInput {
+  fileId?: string;
+  includeHeadings?: boolean;
+}
+
+export interface GDriveListHeadingsInput {
+  fileId?: string;
+  minLevel?: number;
+  maxLevel?: number;
+}
+
+export interface GDriveReadContentInput {
+  fileId?: string;
+  mode?: "full" | "section";
+  sectionHeading?: string;
+}
+
+export interface GDriveDownloadInput {
+  fileId?: string;
+  mode?: "full" | "section";
+  sectionHeading?: string;
+  destinationPath?: string;
+  chunkSizeBytes?: number;
+}

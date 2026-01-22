@@ -27,11 +27,12 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "bench:tools": "npm run build && node dist/scripts/benchmark-tools.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
-    "@modelcontextprotocol/sdk": "0.5.0",
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "dotenv": "^16.5.0",
     "googleapis": "^144.0.0"
   },

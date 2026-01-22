@@ -145,3 +145,11 @@ export function contentKey(fileId: string): string {
 export function headingKey(fileId: string, headingId: string): string {
   return `${fileId}:heading:${headingId}`;
 }
+
+/**
+ * Cache key for all headings
+ * Format: fileId:headings
+ */
+export function headingsKey(fileId: string): string {
+  return `${fileId}:headings`;
+}
