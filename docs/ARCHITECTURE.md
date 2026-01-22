@@ -18,6 +18,11 @@ using the MCP SDK.
 - `tools/`
   - `gdrive_search.ts`: Search Google Drive
   - `gdrive_read_file.ts`: Read file contents and optionally extract sections
+  - `gdrive_parse_link.ts`: Parse Google Docs links
+  - `gdrive_get_metadata.ts`: Fetch metadata and headings
+  - `gdrive_list_headings.ts`: List headings for Google Docs
+  - `gdrive_read_content.ts`: Read content explicitly by mode
+  - `gdrive_download.ts`: Download content to a local file with byte offsets
   - `cache.ts`: In-memory LRU cache with TTL and modifiedTime validation
   - `types.ts`: Tool input and response types
 
@@ -26,20 +31,12 @@ using the MCP SDK.
 1. Server starts and initializes MCP handlers.
 2. Auth manager provides OAuth2 credentials and configures Google API client.
 3. Tool calls are routed via `CallToolRequestSchema`.
-4. Resource requests (`gdrive:///`) map to Drive file IDs and reuse the read
-   tool to return contents.
 
 ## Authentication
 
 - OAuth2 credentials are stored in `.gdrive-server-credentials.json`.
 - Tokens are refreshed automatically when near expiry.
 - Interactive auth occurs if no valid credentials are available.
-
-## Resources
-
-- The server declares a `gdrive` resource scheme.
-- `list` uses `drive.files.list`.
-- `read` uses the `gdrive_read_file` tool internally.
 
 ## Caching
 
@@ -51,15 +48,51 @@ using the MCP SDK.
 
 ### `gdrive_search`
 
-- Input: `query`, optional `pageToken`, `pageSize`, `format`
-- Output: JSON by default (file metadata + `nextPageToken`), or text with `format: "text"`
+- Input: `query`, optional `pageToken`, `pageSize`
+- Output: JSON by default (file metadata + `nextPageToken`), or text with `MCP_GDRIVE_OUTPUT_FORMAT=text`
 
 ### `gdrive_read_file`
 
-- Input: `fileId`, optional `url`, optional `sectionHeading`, optional `format`
-- Output: JSON by default (file metadata + content), or text with `format: "text"`
+- Input: `fileId`, optional `url`, optional `sectionHeading`
+- Output: JSON by default (file metadata + content), or text with `MCP_GDRIVE_OUTPUT_FORMAT=text`
   - Google Workspace files are exported to Markdown/CSV/plain text/PNG
   - Other files return text or base64 blobs
+
+### `gdrive_parse_link`
+
+- Input: `url`
+- Output: JSON with `fileId`, optional `headingId`, and `docType`
+
+### `gdrive_get_metadata`
+
+- Input: `fileId`, optional `includeHeadings`
+- Output: JSON with file metadata and optional headings list
+
+### `gdrive_list_headings`
+
+- Input: `fileId`, optional `minLevel`, optional `maxLevel`
+- Output: JSON with file metadata and headings list
+
+### `gdrive_read_content`
+
+- Input: `fileId`, optional `mode`, optional `sectionHeading`
+- Output: JSON with file metadata and content, or section content when requested
+
+### `gdrive_download`
+
+- Input: `fileId`, optional `mode`, optional `sectionHeading`, optional `destinationPath`, optional `chunkSizeBytes`
+- Output: JSON with file metadata, download path, and byte offsets for local paging
+
+## Download locations
+
+- Default download directory: `~/.mcp-gdrive/downloads` (configurable via `GDRIVE_DOWNLOAD_DIR`).
+- If `destinationPath` is a directory (or ends with a path separator), the file name is derived from the Drive file.
+- Missing directories are created automatically.
+
+## Output format
+
+- Tool output defaults to JSON.
+- Set `MCP_GDRIVE_OUTPUT_FORMAT=text` to return plain text responses.
 
 ## Planned Changes
 

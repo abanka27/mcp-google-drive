@@ -1,9 +1,10 @@
 import { google } from "googleapis";
 import { GDriveSearchInput, InternalToolResponse } from "./types.js";
+import { getOutputFormat } from "./output.js";
 
 export const schema = {
   name: "gdrive_search",
-  description: "Search for files in Google Drive",
+  description: "Search Drive files to find candidate fileIds (not in-doc search).",
   inputSchema: {
     type: "object",
     properties: {
@@ -21,11 +22,6 @@ export const schema = {
         description: "Number of results per page (max 100)",
         optional: true,
       },
-      format: {
-        type: "string",
-        description: "Response format: json or text",
-        optional: true,
-      },
     },
     required: ["query"],
   },
@@ -37,7 +33,7 @@ export async function search(
   const drive = google.drive("v3");
   const userQuery = args.query.trim();
   let searchQuery = "";
-  const format = args.format ?? "json";
+  const format = getOutputFormat();
 
   // If query is empty, list all files
   if (!userQuery) {
@@ -83,12 +79,12 @@ export async function search(
   if (format === "text") {
     const fileList = files
       .map((file) => `${file.id} ${file.name} (${file.mimeType})`)
-      .join("\n");
+    .join("\n");
 
     response = `Found ${files.length} files:\n${fileList}`;
 
-    if (res.data.nextPageToken) {
-      response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+  if (res.data.nextPageToken) {
+    response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
     }
   } else {
     response = JSON.stringify(

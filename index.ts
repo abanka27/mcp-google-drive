@@ -4,21 +4,65 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
-  ListResourcesRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
   ListToolsRequestSchema,
-  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { google } from "googleapis";
 import {
   getValidCredentials,
   setupTokenRefresh,
-  loadCredentialsQuietly,
 } from "./auth.js";
 import { tools } from "./tools/index.js";
 import { InternalToolResponse } from "./tools/types.js";
-import { getFileMetadata, readGoogleDriveFile } from "./tools/gdrive_read_file.js";
 
-const drive = google.drive("v3");
+// Prompt templates exposed via ListPrompts.
+const prompts = [
+  {
+    name: "outline_doc",
+    description: "Return a structured outline of a Google Doc.",
+    arguments: [
+      {
+        name: "url",
+        description: "Google Docs URL to outline",
+        required: true,
+      },
+      {
+        name: "minLevel",
+        description: "Optional minimum heading level to include (e.g., 2 for H2+)",
+        required: false,
+      },
+      {
+        name: "maxLevel",
+        description: "Optional maximum heading level to include (e.g., 3 for up to H3)",
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "read_section_by_heading",
+    description: "Read a specific section of a Google Doc by heading text.",
+    arguments: [
+      {
+        name: "url",
+        description: "Google Docs URL to read from",
+        required: true,
+      },
+      {
+        name: "sectionHeading",
+        description: "Heading text to read (exact or partial match)",
+        required: true,
+      },
+    ],
+  },
+] as const;
+
+function requireArg(name: string, args?: Record<string, string>) {
+  const value = args?.[name];
+  if (!value) {
+    throw new Error(`Missing required prompt argument: ${name}`);
+  }
+  return value;
+}
 
 const server = new Server(
   {
@@ -28,10 +72,8 @@ const server = new Server(
   {
     capabilities: {
       resources: {
-        schemes: ["gdrive"], // Declare that we handle gdrive:/// URIs
-        listable: true, // Support listing available resources
-        readable: true, // Support reading resource contents
       },
+      prompts: {},
       tools: {},
     },
   },
@@ -43,59 +85,72 @@ async function ensureAuth() {
   return await getValidCredentials();
 }
 
-async function ensureAuthQuietly() {
-  const auth = await loadCredentialsQuietly();
-  if (auth) {
-    google.options({ auth });
-  }
-  return auth;
-}
-
-server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
-  await ensureAuthQuietly();
-  const pageSize = 10;
-  const params: any = {
-    pageSize,
-    fields: "nextPageToken, files(id, name, mimeType)",
-  };
-
-  if (request.params?.cursor) {
-    params.pageToken = request.params.cursor;
-  }
-
-  const res = await drive.files.list(params);
-  const files = res.data.files!;
-
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
   return {
-    resources: files.map((file) => ({
-      uri: `gdrive:///${file.id}`,
-      mimeType: file.mimeType,
-      name: file.name,
-    })),
-    nextCursor: res.data.nextPageToken,
+    prompts,
   };
 });
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  await ensureAuthQuietly();
-  const fileId = request.params.uri.replace("gdrive:///", "");
-  const metadata = await getFileMetadata(fileId);
-  const result = await readGoogleDriveFile(fileId, metadata);
-  const content = {
-    uri: request.params.uri,
-    mimeType: result.contents.mimeType,
-    ...(result.contents.text
-      ? { text: result.contents.text }
-      : { blob: result.contents.blob || "" }),
-  };
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const prompt = prompts.find((item) => item.name === request.params.name);
+  if (!prompt) {
+    throw new Error(`Prompt not found: ${request.params.name}`);
+  }
 
-  return {
-    contents: [
-      {
-        ...content,
-      },
-    ],
-  };
+  const args = request.params.arguments ?? {};
+
+  if (prompt.name === "outline_doc") {
+    const url = requireArg("url", args);
+    const minLevel = args.minLevel ? `minLevel=${args.minLevel}` : "minLevel=2";
+    const maxLevel = args.maxLevel ? `maxLevel=${args.maxLevel}` : "maxLevel=4";
+    return {
+      description: prompt.description,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              "Provide a structured outline (headings) for this Google Doc.",
+              `URL: ${url}`,
+              "",
+              "Use this workflow:",
+              "1) gdrive_parse_link to get fileId",
+              `2) gdrive_list_headings with ${minLevel}, ${maxLevel}`,
+              "3) Return the headings grouped by level",
+            ].join("\n"),
+          },
+        },
+      ],
+    };
+  }
+
+  if (prompt.name === "read_section_by_heading") {
+    const url = requireArg("url", args);
+    const sectionHeading = requireArg("sectionHeading", args);
+    return {
+      description: prompt.description,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: [
+              "Read a single section from this Google Doc.",
+              `URL: ${url}`,
+              `Section heading: ${sectionHeading}`,
+              "",
+              "Use this workflow:",
+              "1) gdrive_parse_link to get fileId",
+              "2) gdrive_read_content mode=section with sectionHeading",
+            ].join("\n"),
+          },
+        },
+      ],
+    };
+  }
+
+  throw new Error(`Prompt not implemented: ${request.params.name}`);
 });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {

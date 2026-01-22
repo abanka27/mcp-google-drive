@@ -1,10 +1,12 @@
 import { google, docs_v1 } from "googleapis";
 import { GDriveReadFileInput, InternalToolResponse } from "./types.js";
 import { cache, contentKey, headingKey } from "./cache.js";
+import { getOutputFormat } from "./output.js";
 
 export const schema = {
   name: "gdrive_read_file",
-  description: "Read contents of a file from Google Drive. Can optionally extract a specific section by heading text.",
+  description:
+    "Legacy convenience reader. Prefer gdrive_parse_link -> gdrive_list_headings -> gdrive_read_content for large Docs.",
   inputSchema: {
     type: "object",
     properties: {
@@ -19,11 +21,6 @@ export const schema = {
       sectionHeading: {
         type: "string",
         description: "Optional: Heading text to extract a specific section (e.g., '3.1 APIs'). Returns content from this heading until the next heading of same or higher level.",
-      },
-      format: {
-        type: "string",
-        description: "Response format: json or text",
-        optional: true,
       },
     },
     required: ["fileId"],
@@ -148,7 +145,7 @@ async function findHeadingTextById(
 /**
  * Extract a section from markdown content based on heading text
  */
-function extractSection(content: string, headingText: string): { section: string | null; headings: string[] } {
+export function extractSection(content: string, headingText: string): { section: string | null; headings: string[] } {
   const lines = content.split('\n');
   const headings: string[] = [];
   let inSection = false;
@@ -203,7 +200,7 @@ export async function readFile(
 ): Promise<InternalToolResponse> {
   // fileId is required
   const fileId = args.fileId;
-  const format = args.format ?? "json";
+  const format = getOutputFormat();
   
   if (!fileId) {
     const errorPayload = format === "json"
@@ -360,6 +357,8 @@ export async function readFile(
     }
   }
   
+  const hint =
+    "Hint: For large Docs, use gdrive_list_headings and gdrive_read_content with mode=section to avoid full reads.";
   if (format === "json") {
     return {
       content: [
@@ -374,6 +373,7 @@ export async function readFile(
                 modifiedTime: metadata.modifiedTime,
               },
               content: result.contents,
+              hint,
             },
             null,
             2,
@@ -383,12 +383,12 @@ export async function readFile(
       isError: false,
     };
   }
-
+  
   return {
     content: [
       {
         type: "text",
-        text: `Contents of ${result.name}:\n\n${result.contents.text || result.contents.blob}`,
+        text: `Contents of ${result.name}:\n\n${result.contents.text || result.contents.blob}\n\n${hint}`,
       },
     ],
     isError: false,

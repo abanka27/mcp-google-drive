@@ -47,7 +47,8 @@ async function runOnce(label: string, fn: () => Promise<string>): Promise<RunRes
 }
 
 async function runSearch(query: string, format: "json" | "text"): Promise<string> {
-  const result = await search({ query, pageSize: 10, format });
+  process.env.MCP_GDRIVE_OUTPUT_FORMAT = format;
+  const result = await search({ query, pageSize: 10 });
   return result.content[0]?.text || "";
 }
 
@@ -56,7 +57,8 @@ async function runReadFile(
   format: "json" | "text",
   sectionHeading?: string,
 ): Promise<string> {
-  const result = await readFile({ fileId, format, sectionHeading });
+  process.env.MCP_GDRIVE_OUTPUT_FORMAT = format;
+  const result = await readFile({ fileId, sectionHeading });
   return result.content[0]?.text || "";
 }
 
