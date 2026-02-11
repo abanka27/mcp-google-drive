@@ -158,14 +158,14 @@ Your OAuth token is saved in the directory specified by the `GDRIVE_CREDS_DIR` e
 
 ### Usage with Desktop App
 
-To integrate this server with the desktop app, add the following to your app's server configuration:
+To integrate this server with the desktop app, point the config at your local build:
 
 ```json
 {
   "mcpServers": {
     "gdrive": {
-      "command": "npx",
-      "args": ["-y", "@abanka27/mcp-google-drive"],
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-google-drive/dist/index.js"],
       "env": {
         "CLIENT_ID": "<CLIENT_ID>",
         "CLIENT_SECRET": "<CLIENT_SECRET>",
@@ -175,7 +175,6 @@ To integrate this server with the desktop app, add the following to your app's s
     }
   }
 }
-```
 
 ## License
 
