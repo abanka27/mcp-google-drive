@@ -20,9 +20,17 @@ gdrive search <query> [--type docs|sheets] [--page-size N] [--page-token TOKEN]
 gdrive meta   <fileId|url>
 gdrive docs read     <fileId|url> [--section "Heading"] [--json] [--no-images]
 gdrive docs headings <fileId|url> [--min N] [--max N]
+gdrive docs create   --name "Title" [--from FILE]    (or pipe markdown on stdin)
+gdrive docs update   <fileId|url> [--from FILE]       (or pipe markdown on stdin)
 gdrive sheets read   <fileId|url> [--range A1:B10] [--csv|--tsv|--json]
 gdrive files read    <fileId|url>
 ```
+
+`docs create`/`update` import Markdown via Drive's native converter. Updates
+are a **full-body replace**: text and structure (headings, lists, tables,
+links) convert, but it does **not** preserve embedded images or anchored
+comments. Local image references (`![](./x.png)`) are stripped before import
+(they make Drive's importer fail); public image URLs are kept and embedded.
 
 Content is written to **stdout** so you can pipe or redirect it; structured
 output is available via `--json`, and auxiliary notes (e.g. the embedded-image
@@ -152,7 +160,7 @@ content via tools.
 1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
 2. [Enable the Google Drive API](https://console.cloud.google.com/workspace-api/products)
 3. [Configure an OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) ("internal" is fine for testing)
-4. Add OAuth scopes `https://www.googleapis.com/auth/drive.readonly`, `https://www.googleapis.com/auth/spreadsheets`
+4. Add OAuth scopes `https://www.googleapis.com/auth/drive` (full read/write, required for `docs create`/`update`), `https://www.googleapis.com/auth/spreadsheets`
 5. In order to allow interaction with sheets and docs you will also need to enable the [Google Sheets API](https://console.cloud.google.com/apis/api/sheets.googleapis.com/) and [Google Docs API](https://console.cloud.google.com/marketplace/product/google/docs.googleapis.com) in your workspaces Enabled API and Services section.
 6. [Create an OAuth Client ID](https://console.cloud.google.com/apis/credentials/oauthclient) for application type "Desktop App"
 7. Download the JSON file of your client's OAuth keys

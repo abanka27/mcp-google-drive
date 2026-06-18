@@ -1,8 +1,10 @@
 import { getFileMetadata, readFileContent } from "../../core/drive.js";
 import { extractSection, getDocStructure, listHeadings } from "../../core/docs.js";
 import { resolveFileRef } from "../../core/links.js";
+import { createDocFromMarkdown, stripLocalImages, updateDocFromMarkdown } from "../../core/write.js";
 import { DOC_MIME, DocImage } from "../../core/types.js";
 import { ArgError } from "../args.js";
+import { readMarkdownInput } from "../input.js";
 import { emitJson, emitText } from "../output.js";
 import { Command, CommandGroup } from "../types.js";
 
@@ -23,6 +25,18 @@ function imageNote(images: DocImage[]): void {
       `note: ${images.length} embedded image(s); re-run with --json for the manifest.\n`,
     );
   }
+}
+
+/** Strip import-breaking local image refs from source markdown, warning on stderr. */
+function sanitizeMarkdown(raw: string): string {
+  const { markdown, stripped, kept } = stripLocalImages(raw);
+  if (stripped > 0) {
+    const keptNote = kept > 0 ? `; kept ${kept} public image URL(s)` : "";
+    process.stderr.write(
+      `warning: removed ${stripped} non-public image reference(s) — local paths break Drive's importer${keptNote}.\n`,
+    );
+  }
+  return markdown;
 }
 
 const docsRead: Command = {
@@ -131,7 +145,51 @@ const docsHeadings: Command = {
   },
 };
 
+const docsCreate: Command = {
+  summary: "Create a new Google Doc from Markdown (file or stdin).",
+  usage: 'gdrive docs create --name "Title" [--from FILE]   (or pipe markdown on stdin)',
+  flags: {
+    name: { type: "string", description: "Title for the new doc (required)" },
+    from: { type: "string", description: "Markdown file to import (default: stdin)" },
+  },
+  async run({ flags }) {
+    const name = flags.name as string | undefined;
+    if (!name) throw new ArgError("--name is required");
+
+    const markdown = sanitizeMarkdown(await readMarkdownInput(flags.from as string | undefined));
+    const doc = await createDocFromMarkdown(name, markdown);
+    emitJson(doc);
+  },
+};
+
+const docsUpdate: Command = {
+  summary: "Replace a Google Doc's full content from Markdown (file or stdin).",
+  usage: "gdrive docs update <fileId|url> [--from FILE]   (or pipe markdown on stdin)",
+  flags: {
+    from: { type: "string", description: "Markdown file to import (default: stdin)" },
+  },
+  async run({ positionals, flags }) {
+    const ref = positionals[0];
+    if (!ref) throw new ArgError("Missing <fileId|url>");
+
+    const { fileId } = resolveFileRef(ref);
+    const metadata = await assertDoc(fileId);
+
+    // Full overwrite is lossy: warn about embedded images that will be removed.
+    const { images } = await getDocStructure(fileId);
+    if (images.length > 0) {
+      process.stderr.write(
+        `warning: replacing "${metadata.name}" will remove its ${images.length} embedded image(s) and orphan anchored comments.\n`,
+      );
+    }
+
+    const markdown = sanitizeMarkdown(await readMarkdownInput(flags.from as string | undefined));
+    const doc = await updateDocFromMarkdown(fileId, markdown);
+    emitJson(doc);
+  },
+};
+
 export const docsGroup: CommandGroup = {
-  summary: "Google Docs operations (read, headings).",
-  subcommands: { read: docsRead, headings: docsHeadings },
+  summary: "Google Docs operations (read, headings, create, update).",
+  subcommands: { read: docsRead, headings: docsHeadings, create: docsCreate, update: docsUpdate },
 };

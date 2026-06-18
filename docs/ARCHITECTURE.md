@@ -14,6 +14,7 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
 - `core/` — transport-agnostic domain logic (no MCP or CLI concerns)
   - `drive.ts`: file metadata, search (name + full text), content read/export
   - `docs.ts`: heading outline, section extraction, embedded-image manifest, heading-anchor resolution
+  - `write.ts`: create/replace Docs from Markdown (Drive import); local-image stripping
   - `sheets.ts`: range/tab reads via the Sheets values API; CSV/TSV serialization
   - `links.ts`: parse Google URLs / bare IDs into `{ fileId, headingId, docType }`
   - `env.ts`: config home resolution and `.env` loading (stdlib `process.loadEnvFile`)
@@ -38,6 +39,8 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
 
 ## Authentication
 
+- Scopes: `drive` (full read/write) and `spreadsheets`. Write access is
+  required by `docs create`/`update`; changing scopes requires re-consent.
 - OAuth2 credentials are stored in `.gdrive-server-credentials.json` under the
   config home (`$XDG_CONFIG_HOME/mcp-gdrive`, or `GDRIVE_CREDS_DIR` if set).
 - Tokens are refreshed automatically when near expiry; interactive auth runs
@@ -60,7 +63,15 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
   structured output; auxiliary notes go to stderr. Binary is refused on a TTY.
 - MCP: JSON by default; set `MCP_GDRIVE_OUTPUT_FORMAT=text` for plain text.
 
+## Writing
+
+- `docs create`/`docs update` import Markdown to a Doc via Drive's native
+  converter (CLI only; the MCP surface stays read-only).
+- Updates are a full-body replace: they do not preserve embedded images or
+  anchored comments. Local/relative image refs are stripped before import
+  (Drive's importer 500s on unfetchable sources); public image URLs embed.
+
 ## Not implemented
 
 - No `gdrive:///` MCP resources — access content via tools/commands.
-- No write operations (creating/updating Docs or Sheets).
+- No Sheets writes, and no targeted/in-place Doc edits (full replace only).
