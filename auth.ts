@@ -3,16 +3,16 @@ import { google, Auth } from "googleapis";
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
+import { configHome } from "./core/env.js";
 
 export const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/spreadsheets",
 ];
 
-// Get credentials directory from environment variable or use default
-const CREDS_DIR =
-  process.env.GDRIVE_CREDS_DIR ||
-  path.join(path.dirname(new URL(import.meta.url).pathname), "../../../");
+// Credentials directory: explicit env var, else the fixed config home
+// (so the CLI resolves creds independent of the current directory).
+const CREDS_DIR = process.env.GDRIVE_CREDS_DIR || configHome();
 
 const credentialsPath = path.join(CREDS_DIR, ".gdrive-server-credentials.json");
 const keyfilePath = path.join(CREDS_DIR, "gcp-oauth.keys.json");

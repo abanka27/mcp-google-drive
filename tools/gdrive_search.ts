@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { searchFiles } from "../core/drive.js";
 import { GDriveSearchInput, InternalToolResponse } from "./types.js";
 import { getOutputFormat } from "./output.js";
 
@@ -27,83 +27,25 @@ export const schema = {
   },
 } as const;
 
-export async function search(
-  args: GDriveSearchInput,
-): Promise<InternalToolResponse> {
-  const drive = google.drive("v3");
-  const userQuery = args.query.trim();
-  let searchQuery = "";
+export async function search(args: GDriveSearchInput): Promise<InternalToolResponse> {
   const format = getOutputFormat();
-
-  // If query is empty, list all files
-  if (!userQuery) {
-    searchQuery = "trashed = false";
-  } else {
-    // Escape special characters in the query
-    const escapedQuery = userQuery.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-
-    // Build search query with multiple conditions
-    const conditions = [];
-
-    // Search in title
-    conditions.push(`name contains '${escapedQuery}'`);
-
-    // If specific file type is mentioned in query, add mimeType condition
-    if (userQuery.toLowerCase().includes("sheet")) {
-      conditions.push("mimeType = 'application/vnd.google-sheets.spreadsheet'");
-    }
-
-    searchQuery = `(${conditions.join(" or ")}) and trashed = false`;
-  }
-
-  const res = await drive.files.list({
-    q: searchQuery,
-    pageSize: args.pageSize || 10,
+  const { files, nextPageToken } = await searchFiles({
+    query: args.query ?? "",
     pageToken: args.pageToken,
-    orderBy: "modifiedTime desc",
-    fields: "nextPageToken, files(id, name, mimeType, modifiedTime, size)",
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-    corpora: 'allDrives',
+    pageSize: args.pageSize,
   });
 
-  const files = (res.data.files || []).map((file: any) => ({
-    id: file.id,
-    name: file.name,
-    mimeType: file.mimeType,
-    modifiedTime: file.modifiedTime,
-    size: file.size ? Number(file.size) : undefined,
-  }));
-
-  let response: string;
   if (format === "text") {
-    const fileList = files
-      .map((file) => `${file.id} ${file.name} (${file.mimeType})`)
-    .join("\n");
-
-    response = `Found ${files.length} files:\n${fileList}`;
-
-  if (res.data.nextPageToken) {
-    response += `\n\nMore results available. Use pageToken: ${res.data.nextPageToken}`;
+    const fileList = files.map((f) => `${f.id} ${f.name} (${f.mimeType})`).join("\n");
+    let response = `Found ${files.length} files:\n${fileList}`;
+    if (nextPageToken) {
+      response += `\n\nMore results available. Use pageToken: ${nextPageToken}`;
     }
-  } else {
-    response = JSON.stringify(
-      {
-        files,
-        nextPageToken: res.data.nextPageToken || null,
-      },
-      null,
-      2,
-    );
+    return { content: [{ type: "text", text: response }], isError: false };
   }
 
   return {
-    content: [
-      {
-        type: "text",
-        text: response,
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify({ files, nextPageToken }, null, 2) }],
     isError: false,
   };
 }

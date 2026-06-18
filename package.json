@@ -1,7 +1,7 @@
 {
   "name": "@abanka27/mcp-google-drive",
   "version": "0.1.0",
-  "description": "MCP server for interacting with Google Drive",
+  "description": "MCP server and CLI for interacting with Google Drive",
   "license": "MIT",
   "author": "Anshuman Banka",
   "homepage": "https://github.com/abanka27/mcp-google-drive",
@@ -19,26 +19,32 @@
     "AI"
   ],
   "bin": {
-    "mcp-google-drive": "dist/index.js"
+    "mcp-google-drive": "dist/index.js",
+    "gdrive": "dist/bin/gdrive.js"
   },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "google-auth-library": "^10.7.0"
+  },
   "scripts": {
-    "build": "tsc && shx chmod +x dist/*.js",
+    "build": "tsc && shx chmod +x dist/index.js dist/bin/gdrive.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "bench:tools": "npm run build && node dist/scripts/benchmark-tools.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
-    "@modelcontextprotocol/sdk": "^1.25.3",
-    "dotenv": "^16.5.0",
-    "googleapis": "^144.0.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "googleapis": "^173.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.9.3",
-    "shx": "^0.3.4",
-    "typescript": "^5.6.2"
+    "@types/node": "^25.9.3",
+    "shx": "^0.4.0",
+    "typescript": "^6.0.3"
   }
 }

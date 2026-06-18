@@ -1,101 +1,66 @@
 ## Overview
 
-This repository implements an MCP (Model Context Protocol) server that
-integrates with Google Drive and exposes tools plus a `gdrive:///` resource
-scheme. The server uses OAuth2 for authentication and communicates over stdio
-using the MCP SDK.
+This repository provides read access to Google Drive, Docs, and Sheets
+through two surfaces that share one implementation:
+
+- a **CLI** (`gdrive`) — the primary surface, built for shell pipelines and AI agents
+- an **MCP server** — exposes the same capabilities as Model Context Protocol tools over stdio
+
+Both authenticate with OAuth2 and call into a transport-agnostic `core/`
+layer, so the Drive/Docs/Sheets logic lives in exactly one place.
 
 ## Components
 
-- `index.ts`
-  - MCP server setup and transport
-  - Resource handlers for list/read
-  - Tool registry and dispatch
-  - Auth initialization and refresh scheduling
-- `auth.ts`
-  - OAuth2 authentication manager
-  - Credential loading, caching, and refresh
-- `tools/`
-  - `gdrive_search.ts`: Search Google Drive
-  - `gdrive_read_file.ts`: Read file contents and optionally extract sections
-  - `gdrive_parse_link.ts`: Parse Google Docs links
-  - `gdrive_get_metadata.ts`: Fetch metadata and headings
-  - `gdrive_list_headings.ts`: List headings for Google Docs
-  - `gdrive_read_content.ts`: Read content explicitly by mode
-  - `gdrive_download.ts`: Download content to a local file with byte offsets
-  - `cache.ts`: In-memory LRU cache with TTL and modifiedTime validation
-  - `types.ts`: Tool input and response types
+- `core/` — transport-agnostic domain logic (no MCP or CLI concerns)
+  - `drive.ts`: file metadata, search (name + full text), content read/export
+  - `docs.ts`: heading outline, section extraction, embedded-image manifest, heading-anchor resolution
+  - `sheets.ts`: range/tab reads via the Sheets values API; CSV/TSV serialization
+  - `links.ts`: parse Google URLs / bare IDs into `{ fileId, headingId, docType }`
+  - `env.ts`: config home resolution and `.env` loading (stdlib `process.loadEnvFile`)
+  - `types.ts`: shared domain types
+- `cli/` — the `gdrive` command surface
+  - `args.ts`: schema-driven argument parser
+  - `registry.ts`: command tree, dispatch, and help
+  - `commands/`: one module per noun group (`search`, `meta`, `docs`, `sheets`, `files`)
+  - `output.ts`: stdout/stderr helpers (raw content, JSON, binary TTY guard)
+- `bin/gdrive.ts` — CLI entrypoint (loads env, resolves command, authenticates, runs)
+- `tools/` — MCP tool adapters; thin wrappers that format `core/` results into MCP responses
+- `index.ts` — MCP server setup, prompt + tool registration, stdio transport
+- `auth.ts` — OAuth2 manager: credential loading, in-memory session cache, refresh
 
 ## Data Flow
 
-1. Server starts and initializes MCP handlers.
-2. Auth manager provides OAuth2 credentials and configures Google API client.
-3. Tool calls are routed via `CallToolRequestSchema`.
+1. Env is loaded (config home or cwd `.env`) before anything reads `process.env`.
+2. The auth manager provides OAuth2 credentials and configures the Google API client.
+3. CLI: `bin/gdrive` resolves the command and parses flags, authenticates, then runs.
+4. MCP: tool calls are routed via `CallToolRequestSchema` after `ensureAuth`.
+5. Both paths call `core/`, which returns plain data; the surface formats it.
 
 ## Authentication
 
-- OAuth2 credentials are stored in `.gdrive-server-credentials.json`.
-- Tokens are refreshed automatically when near expiry.
-- Interactive auth occurs if no valid credentials are available.
+- OAuth2 credentials are stored in `.gdrive-server-credentials.json` under the
+  config home (`$XDG_CONFIG_HOME/mcp-gdrive`, or `GDRIVE_CREDS_DIR` if set).
+- Tokens are refreshed automatically when near expiry; interactive auth runs
+  only on first use or when the refresh token is revoked.
+- The long-running MCP server keeps an in-memory session cache and a periodic
+  refresh timer; the short-lived CLI loads/refreshes from disk per invocation.
 
-## Caching
+## Reads and exports
 
-- File content and heading resolution are cached in memory.
-- Cache entries are invalidated on TTL or modifiedTime changes.
-- Cache defaults: max size 100, TTL 5 minutes.
+- Google Docs export to Markdown; Sheets to CSV (full export) or via the
+  Sheets values API (ranges, named tabs); Slides to plain text; Drawings to
+  PNG bytes. Non-Workspace files are downloaded verbatim (text or binary).
+- Section reads slice exported Markdown by heading text and are Docs-only.
+- Embedded images in Docs are surfaced as a manifest (object id, short-lived
+  `contentUri`, alt text, dimensions); the bytes are not inlined.
 
-## Tool Contracts (Current)
+## Output
 
-### `gdrive_search`
+- CLI: content goes to stdout (pipe/redirect-friendly); `--json` gives
+  structured output; auxiliary notes go to stderr. Binary is refused on a TTY.
+- MCP: JSON by default; set `MCP_GDRIVE_OUTPUT_FORMAT=text` for plain text.
 
-- Input: `query`, optional `pageToken`, `pageSize`
-- Output: JSON by default (file metadata + `nextPageToken`), or text with `MCP_GDRIVE_OUTPUT_FORMAT=text`
+## Not implemented
 
-### `gdrive_read_file`
-
-- Input: `fileId`, optional `url`, optional `sectionHeading`
-- Output: JSON by default (file metadata + content), or text with `MCP_GDRIVE_OUTPUT_FORMAT=text`
-  - Google Workspace files are exported to Markdown/CSV/plain text/PNG
-  - Other files return text or base64 blobs
-
-### `gdrive_parse_link`
-
-- Input: `url`
-- Output: JSON with `fileId`, optional `headingId`, and `docType`
-
-### `gdrive_get_metadata`
-
-- Input: `fileId`, optional `includeHeadings`
-- Output: JSON with file metadata and optional headings list
-
-### `gdrive_list_headings`
-
-- Input: `fileId`, optional `minLevel`, optional `maxLevel`
-- Output: JSON with file metadata and headings list
-
-### `gdrive_read_content`
-
-- Input: `fileId`, optional `mode`, optional `sectionHeading`
-- Output: JSON with file metadata and content, or section content when requested
-
-### `gdrive_download`
-
-- Input: `fileId`, optional `mode`, optional `sectionHeading`, optional `destinationPath`, optional `chunkSizeBytes`
-- Output: JSON with file metadata, download path, and byte offsets for local paging
-
-## Download locations
-
-- Default download directory: `~/.mcp-gdrive/downloads` (configurable via `GDRIVE_DOWNLOAD_DIR`).
-- If `destinationPath` is a directory (or ends with a path separator), the file name is derived from the Drive file.
-- Missing directories are created automatically.
-
-## Output format
-
-- Tool output defaults to JSON.
-- Set `MCP_GDRIVE_OUTPUT_FORMAT=text` to return plain text responses.
-
-## Planned Changes
-
-- Structured tool outputs for better agent interoperability.
-- Additional tools for metadata and partial reads.
-- Planned Google Sheets tools (read/update), not yet implemented.
+- No `gdrive:///` MCP resources — access content via tools/commands.
+- No write operations (creating/updating Docs or Sheets).

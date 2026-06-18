@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import "./core/loadenv.js"; // must precede auth.js (reads env at import time)
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
