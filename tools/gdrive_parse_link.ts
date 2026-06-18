@@ -1,3 +1,4 @@
+import { parseLink } from "../core/links.js";
 import { InternalToolResponse } from "./types.js";
 import { getOutputFormat } from "./output.js";
 
@@ -21,62 +22,28 @@ type ParseLinkInput = {
   url: string;
 };
 
-function parseDocsUrl(url: string): { fileId: string | null; headingId: string | null } {
-  const docPattern = /\/document\/d\/([a-zA-Z0-9_-]+)/;
-  const idPattern = /[?&]id=([a-zA-Z0-9_-]+)/;
-  const headingMatch = url.match(/#heading=([a-zA-Z0-9_.]+)/);
-
-  const docMatch = url.match(docPattern);
-  const idMatch = url.match(idPattern);
-
-  return {
-    fileId: docMatch?.[1] || idMatch?.[1] || null,
-    headingId: headingMatch?.[1] || null,
-  };
-}
-
-export async function parseLink(args: ParseLinkInput): Promise<InternalToolResponse> {
+export async function parseLink_(args: ParseLinkInput): Promise<InternalToolResponse> {
   const format = getOutputFormat();
-  const { fileId, headingId } = parseDocsUrl(args.url);
+  const parsed = parseLink(args.url);
 
-  if (!fileId) {
+  if (!parsed) {
     const errorPayload =
       format === "json"
         ? JSON.stringify({ error: "Unsupported or invalid Docs URL", url: args.url }, null, 2)
         : `Error: Unsupported or invalid Docs URL: ${args.url}`;
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: errorPayload,
-        },
-      ],
-      isError: true,
-    };
+    return { content: [{ type: "text", text: errorPayload }], isError: true };
   }
 
   const payload =
     format === "json"
       ? JSON.stringify(
-          {
-            url: args.url,
-            fileId,
-            headingId,
-            docType: "document",
-          },
+          { url: args.url, fileId: parsed.fileId, headingId: parsed.headingId, docType: parsed.docType },
           null,
           2,
         )
-      : `fileId=${fileId}\nheadingId=${headingId ?? ""}\ndocType=document`;
+      : `fileId=${parsed.fileId}\nheadingId=${parsed.headingId ?? ""}\ndocType=${parsed.docType}`;
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: payload,
-      },
-    ],
-    isError: false,
-  };
+  return { content: [{ type: "text", text: payload }], isError: false };
 }
+
+export { parseLink_ as parseLink };
