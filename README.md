@@ -1,10 +1,45 @@
-# Google Drive server
+# Google Drive CLI & MCP server
 
-This MCP server integrates with Google Drive to allow listing, reading, and searching files.
+Read access to Google Drive, Docs, and Sheets through two surfaces that share
+one implementation: a **`gdrive` CLI** (the primary surface, built for shell
+pipelines and AI agents) and an **MCP server** (stdio). Both authenticate with
+OAuth2 and call into a transport-agnostic `core/` layer.
+
+Requires **Node.js >= 24**.
 
 This project includes code originally developed by Anthropic, PBC, licensed under the MIT License from [this repo](https://github.com/modelcontextprotocol/servers/tree/main/src/gdrive), and additional work from [isaacphi/mcp-gdrive](https://github.com/isaacphi/mcp-gdrive).
 
-## Components
+## CLI
+
+Build (`npm run build`), then invoke `node dist/bin/gdrive.js <command>`. For a
+bare `gdrive` command, symlink `dist/bin/gdrive.js` into any directory on your
+PATH. Every command accepts a Drive file ID or a Google URL.
+
+```
+gdrive search <query> [--type docs|sheets] [--page-size N] [--page-token TOKEN]
+gdrive meta   <fileId|url>
+gdrive docs read     <fileId|url> [--section "Heading"] [--json] [--no-images]
+gdrive docs headings <fileId|url> [--min N] [--max N]
+gdrive sheets read   <fileId|url> [--range A1:B10] [--csv|--tsv|--json]
+gdrive files read    <fileId|url>
+```
+
+Content is written to **stdout** so you can pipe or redirect it; structured
+output is available via `--json`, and auxiliary notes (e.g. the embedded-image
+manifest) go to stderr. Binary content is refused on an interactive terminal —
+redirect it (`gdrive files read <id> > out.pdf`). Run any command with
+`--help` for its flags.
+
+Examples:
+
+```bash
+gdrive docs read <id> > prd.md                  # whole doc as Markdown
+gdrive docs read <id> --section "2. Context"    # just one section
+gdrive sheets read <id> --range "'Sheet2'!A1:C9" --tsv
+gdrive search "quarterly" --type docs
+```
+
+## MCP Components
 
 ### Tools
 
@@ -100,24 +135,12 @@ The server exposes prompt templates to guide agents through common workflows:
 - `outline_doc` (args: `url`, optional `minLevel`, `maxLevel`)
 - `read_section_by_heading` (args: `url`, `sectionHeading`)
 
-### Planned Tools (Not Yet Implemented Here)
+### Sheets
 
-- **gsheets_read**
-
-  - **Description**: Read data from a Google Spreadsheet with flexible options for ranges and formatting.
-  - **Input**:
-    - `spreadsheetId` (string): The ID of the spreadsheet to read.
-    - `ranges` (array of strings, optional): Optional array of A1 notation ranges (e.g., `['Sheet1!A1:B10']`). If not provided, reads the entire sheet.
-    - `sheetId` (number, optional): Specific sheet ID to read. If not provided with ranges, reads the first sheet.
-  - **Output**: Returns the specified data from the spreadsheet.
-
-- **gsheets_update_cell**
-  - **Description**: Update a cell value in a Google Spreadsheet.
-  - **Input**:
-    - `fileId` (string): ID of the spreadsheet.
-    - `range` (string): Cell range in A1 notation (e.g., `'Sheet1!A1'`).
-    - `value` (string): New cell value.
-  - **Output**: Confirms the updated value in the specified cell.
+The MCP server reads spreadsheets as CSV via the generic read tools. For
+range- and tab-aware reads (the Sheets values API), use the CLI's
+`gdrive sheets read`. Write operations (creating/updating Docs or Sheets) are
+not implemented on either surface.
 
 ### Resources
 
@@ -135,14 +158,21 @@ content via tools.
 7. Download the JSON file of your client's OAuth keys
 8. Rename the key file to `gcp-oauth.keys.json` and place into the path you specify with `GDRIVE_CREDS_DIR` (i.e. `/Users/username/.config/mcp-gdrive`)
 9. Note your OAuth Client ID and Client Secret. They must be provided as environment variables along with your configuration directory.
-10. You will also need to setup a .env file within the project with the following fields. You can find the Client ID and Client Secret in the Credentials section of the Google Cloud Console.
+10. Provide `CLIENT_ID` and `CLIENT_SECRET` (from the Credentials section of the Google Cloud Console). These can be real shell environment variables or live in a `.env` file:
 
 ```
-GDRIVE_CREDS_DIR=/path/to/config/directory
 CLIENT_ID=<CLIENT_ID>
 CLIENT_SECRET=<CLIENT_SECRET>
-MCP_GDRIVE_OUTPUT_FORMAT=json
+GDRIVE_CREDS_DIR=/path/to/config/directory   # optional; see below
+MCP_GDRIVE_OUTPUT_FORMAT=json                 # MCP only
 ```
+
+**Config home.** `GDRIVE_CREDS_DIR` is optional — it defaults to
+`~/.config/mcp-gdrive` (or `$XDG_CONFIG_HOME/mcp-gdrive` if that variable is set), where the OAuth
+keys (`gcp-oauth.keys.json`) and saved token (`.gdrive-server-credentials.json`)
+are looked up. The CLI loads `.env` from the current directory if present
+(developer convenience), otherwise from the config home — so placing `.env` and
+your credentials in `~/.config/mcp-gdrive` lets `gdrive` run from any directory.
 
 Make sure to build the server with either `npm run build` or `npm run watch`.
 
@@ -152,29 +182,9 @@ Starting the server (`node ./dist/index.js`) triggers the authentication step if
 
 You will be prompted to authenticate with your browser. You must authenticate with an account in the same organization as your Google Cloud project.
 
-Your OAuth token is saved in the directory specified by the `GDRIVE_CREDS_DIR` environment variable.
+Your OAuth token is saved in `GDRIVE_CREDS_DIR` if set, otherwise in the config home (`~/.config/mcp-gdrive`).
 
 ![Authentication Prompt](https://i.imgur.com/TbyV6Yq.png)
-
-### Usage with Desktop App
-
-To integrate this server with the desktop app, point the config at your local build:
-
-```json
-{
-  "mcpServers": {
-    "gdrive": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp-google-drive/dist/index.js"],
-      "env": {
-        "CLIENT_ID": "<CLIENT_ID>",
-        "CLIENT_SECRET": "<CLIENT_SECRET>",
-        "GDRIVE_CREDS_DIR": "/path/to/config/directory",
-        "MCP_GDRIVE_OUTPUT_FORMAT": "json"
-      }
-    }
-  }
-}
 
 ## License
 
