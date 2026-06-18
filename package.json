@@ -34,6 +34,7 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/index.js dist/bin/gdrive.js",
     "prepare": "npm run build",
+    "setup": "npm run build && node dist/bin/gdrive.js setup",
     "watch": "tsc --watch",
     "bench:tools": "npm run build && node dist/scripts/benchmark-tools.js"
   },

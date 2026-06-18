@@ -18,6 +18,26 @@ const credentialsPath = path.join(CREDS_DIR, ".gdrive-server-credentials.json");
 const keyfilePath = path.join(CREDS_DIR, "gcp-oauth.keys.json");
 
 /**
+ * Read client id/secret from the downloaded OAuth keyfile so users don't have
+ * to copy them into a .env. Environment variables, when set, take precedence.
+ */
+function clientCredentials(): { clientId?: string; clientSecret?: string } {
+  if (process.env.CLIENT_ID && process.env.CLIENT_SECRET) {
+    return { clientId: process.env.CLIENT_ID, clientSecret: process.env.CLIENT_SECRET };
+  }
+  try {
+    const json = JSON.parse(fsSync.readFileSync(keyfilePath, "utf-8"));
+    const block = json.installed || json.web || {};
+    return {
+      clientId: process.env.CLIENT_ID || block.client_id,
+      clientSecret: process.env.CLIENT_SECRET || block.client_secret,
+    };
+  } catch {
+    return { clientId: process.env.CLIENT_ID, clientSecret: process.env.CLIENT_SECRET };
+  }
+}
+
+/**
  * Singleton AuthManager - handles all authentication with caching and locking
  */
 class AuthManager {
@@ -111,10 +131,8 @@ class AuthManager {
    * Load credentials from file without prompting
    */
   private async loadCredentialsQuietly(): Promise<Auth.OAuth2Client | null> {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.CLIENT_ID,
-      process.env.CLIENT_SECRET,
-    );
+    const { clientId, clientSecret } = clientCredentials();
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
     
     // Check if credentials file exists
     if (!fsSync.existsSync(credentialsPath)) {

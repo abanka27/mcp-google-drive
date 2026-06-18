@@ -23,7 +23,7 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
 - `cli/` — the `gdrive` command surface
   - `args.ts`: schema-driven argument parser
   - `registry.ts`: command tree, dispatch, and help
-  - `commands/`: one module per noun group (`search`, `meta`, `docs`, `sheets`, `files`)
+  - `commands/`: one module per noun group (`search`, `meta`, `docs`, `sheets`, `files`) plus `setup`
   - `output.ts`: stdout/stderr helpers (raw content, JSON, binary TTY guard)
 - `bin/gdrive.ts` — CLI entrypoint (loads env, resolves command, authenticates, runs)
 - `tools/` — MCP tool adapters; thin wrappers that format `core/` results into MCP responses
@@ -42,6 +42,10 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
 
 - Scopes: `drive` (full read/write) and `spreadsheets`. Write access is
   required by `docs create`/`update`; changing scopes requires re-consent.
+- `gdrive setup` places the downloaded OAuth keyfile in the config home, runs
+  the interactive sign-in, and links `gdrive` onto PATH.
+- Client id/secret are read from `gcp-oauth.keys.json` when `CLIENT_ID`/
+  `CLIENT_SECRET` env vars are unset, so no `.env` is required.
 - OAuth2 credentials are stored in `.gdrive-server-credentials.json` under the
   config home (`$XDG_CONFIG_HOME/mcp-gdrive`, or `GDRIVE_CREDS_DIR` if set).
 - Tokens are refreshed automatically when near expiry; interactive auth runs

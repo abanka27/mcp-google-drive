@@ -156,44 +156,75 @@ not implemented on either surface.
 The server does not currently expose any `gdrive:///` resources. Access Drive
 content via tools.
 
-## Getting started
+## Setup
 
-1. [Create a new Google Cloud project](https://console.cloud.google.com/projectcreate)
-2. [Enable the Google Drive API](https://console.cloud.google.com/workspace-api/products)
-3. [Configure an OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent) ("internal" is fine for testing)
-4. Add OAuth scopes `https://www.googleapis.com/auth/drive` (full read/write, required for `docs create`/`update`), `https://www.googleapis.com/auth/spreadsheets`
-5. In order to allow interaction with sheets and docs you will also need to enable the [Google Sheets API](https://console.cloud.google.com/apis/api/sheets.googleapis.com/) and [Google Docs API](https://console.cloud.google.com/marketplace/product/google/docs.googleapis.com) in your workspaces Enabled API and Services section.
-6. [Create an OAuth Client ID](https://console.cloud.google.com/apis/credentials/oauthclient) for application type "Desktop App"
-7. Download the JSON file of your client's OAuth keys
-8. Rename the key file to `gcp-oauth.keys.json` and place into the path you specify with `GDRIVE_CREDS_DIR` (i.e. `/Users/username/.config/mcp-gdrive`)
-9. Note your OAuth Client ID and Client Secret. They must be provided as environment variables along with your configuration directory.
-10. Provide `CLIENT_ID` and `CLIENT_SECRET` (from the Credentials section of the Google Cloud Console). These can be real shell environment variables or live in a `.env` file:
+Three steps, ~3 minutes. You never edit a `.env` — credentials are read from
+the file you download from Google.
 
-```
-CLIENT_ID=<CLIENT_ID>
-CLIENT_SECRET=<CLIENT_SECRET>
-GDRIVE_CREDS_DIR=/path/to/config/directory   # optional; see below
-MCP_GDRIVE_OUTPUT_FORMAT=json                 # MCP only
+### 1. Install
+
+```bash
+git clone https://github.com/abanka27/mcp-google-drive.git
+cd mcp-google-drive
+npm install        # builds automatically (requires Node >= 24)
 ```
 
-**Config home.** `GDRIVE_CREDS_DIR` is optional — it defaults to
-`~/.config/mcp-gdrive` (or `$XDG_CONFIG_HOME/mcp-gdrive` if that variable is set), where the OAuth
-keys (`gcp-oauth.keys.json`) and saved token (`.gdrive-server-credentials.json`)
-are looked up. The CLI loads `.env` from the current directory if present
-(developer convenience), otherwise from the config home — so placing `.env` and
-your credentials in `~/.config/mcp-gdrive` lets `gdrive` run from any directory.
+### 2. Get Google credentials (one-time, ~2 min)
 
-Make sure to build the server with either `npm run build` or `npm run watch`.
+Each person needs their own OAuth client — credentials can't be shared. Click
+through these exact pages:
 
-### Authentication
+1. **Create or pick a project:** https://console.cloud.google.com/projectcreate
+2. **Enable three APIs** — click *Enable* on each:
+   - Drive — https://console.cloud.google.com/apis/library/drive.googleapis.com
+   - Docs — https://console.cloud.google.com/apis/library/docs.googleapis.com
+   - Sheets — https://console.cloud.google.com/apis/library/sheets.googleapis.com
+3. **OAuth consent screen:** https://console.cloud.google.com/apis/credentials/consent
+   Pick **Internal** if your account offers it. (An **External** app in
+   "Testing" expires logins every 7 days — add yourself as a test user, or
+   publish it.)
+4. **Create credentials → OAuth client ID**, application type **Desktop app**:
+   https://console.cloud.google.com/apis/credentials/oauthclient
+5. **Download the JSON.** That single file is all you need.
 
-Starting the server (`node ./dist/index.js`) triggers the authentication step if no valid credentials are present
+### 3. Run setup
 
-You will be prompted to authenticate with your browser. You must authenticate with an account in the same organization as your Google Cloud project.
+```bash
+npm run setup
+```
 
-Your OAuth token is saved in `GDRIVE_CREDS_DIR` if set, otherwise in the config home (`~/.config/mcp-gdrive`).
+This finds the file you just downloaded (in the current directory or
+`~/Downloads`), stores it, opens your browser to sign in once, and links
+`gdrive` onto your PATH. If it can't find the file, pass the path explicitly:
 
-![Authentication Prompt](https://i.imgur.com/TbyV6Yq.png)
+```bash
+node dist/bin/gdrive.js setup ~/Downloads/client_secret_XXXX.json
+```
+
+Done — try it:
+
+```bash
+gdrive search "" --page-size 3
+```
+
+Credentials and the saved token live in `~/.config/mcp-gdrive`
+(`$XDG_CONFIG_HOME/mcp-gdrive`), or set `GDRIVE_CREDS_DIR` to override. The
+browser prompt only appears on first run; after that the token refreshes
+silently.
+
+## Use with an AI agent (Claude Code skill)
+
+This repo ships a skill at `.claude/skills/gdrive/` that teaches an agent the
+commands and when to reach for them. It loads automatically when you run Claude
+Code inside this repo. To use it from any directory, copy it into your user
+skills:
+
+```bash
+cp -r .claude/skills/gdrive ~/.claude/skills/gdrive
+```
+
+Then ask your agent to read, search, or update Google Docs/Sheets and it will
+drive `gdrive` for you.
 
 ## License
 

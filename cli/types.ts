@@ -5,6 +5,8 @@ export interface Command {
   summary: string;
   usage: string;
   flags: FlagSpec;
+  /** Set false to skip the entrypoint's pre-run authentication (e.g. setup). */
+  needsAuth?: boolean;
   run(parsed: Parsed): Promise<void>;
 }
 
