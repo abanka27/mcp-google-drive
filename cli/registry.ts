@@ -3,9 +3,11 @@ import { metaCommand } from "./commands/meta.js";
 import { docsGroup } from "./commands/docs.js";
 import { sheetsGroup } from "./commands/sheets.js";
 import { filesGroup } from "./commands/files.js";
+import { setupCommand } from "./commands/setup.js";
 import { Command, CommandNode, isCommand } from "./types.js";
 
 export const registry: Record<string, CommandNode> = {
+  setup: setupCommand,
   search: searchCommand,
   meta: metaCommand,
   docs: docsGroup,

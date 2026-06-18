@@ -37,7 +37,10 @@ async function main(): Promise<void> {
 
   // Auth once per invocation: loads the cached token from disk, refreshes if
   // stale, and prompts interactively only on first run / revoked token.
-  await getValidCredentials();
+  // Commands that manage auth themselves (setup) opt out.
+  if (resolved.command.needsAuth !== false) {
+    await getValidCredentials();
+  }
   await resolved.command.run(parsed);
 }
 
