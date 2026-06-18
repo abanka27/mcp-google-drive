@@ -6,7 +6,7 @@ import path from "path";
 import { configHome } from "./core/env.js";
 
 export const SCOPES = [
-  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/spreadsheets",
 ];
 
@@ -202,19 +202,24 @@ class AuthManager {
     scopes: string[],
     timeoutMs: number,
   ): Promise<Auth.OAuth2Client | null> {
-    const timeoutPromise = new Promise<null>((resolve) =>
-      setTimeout(() => {
+    let timer: NodeJS.Timeout | undefined;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
         console.error("[Auth] Authentication timed out");
         resolve(null);
-      }, timeoutMs),
-    );
-    
+      }, timeoutMs);
+    });
+
     const authPromise = authenticate({
       keyfilePath,
       scopes,
     });
-    
-    return Promise.race([authPromise, timeoutPromise]);
+
+    try {
+      return await Promise.race([authPromise, timeoutPromise]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   
   /**
