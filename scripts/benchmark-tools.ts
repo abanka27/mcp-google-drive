@@ -1,4 +1,5 @@
-import "dotenv/config";
+import { loadEnv } from "../core/env.js";
+loadEnv();
 import { performance } from "node:perf_hooks";
 import { getValidCredentials } from "../auth.js";
 import { search } from "../tools/gdrive_search.js";
