@@ -2,6 +2,7 @@ import { getFileMetadata, readFileContent } from "../../core/drive.js";
 import { extractSection, getDocStructure, listHeadings } from "../../core/docs.js";
 import { resolveFileRef } from "../../core/links.js";
 import { createDocFromMarkdown, stripLocalImages, updateDocFromMarkdown } from "../../core/write.js";
+import { listComments } from "../../core/comments.js";
 import { DOC_MIME, DocImage } from "../../core/types.js";
 import { ArgError } from "../args.js";
 import { readMarkdownInput } from "../input.js";
@@ -189,7 +190,29 @@ const docsUpdate: Command = {
   },
 };
 
+const docsComments: Command = {
+  summary: "List comments on a Doc (with reply threads).",
+  usage: "gdrive docs comments <fileId|url> [--include-resolved]",
+  flags: {
+    "include-resolved": { type: "boolean", description: "Include resolved comments" },
+  },
+  async run({ positionals, flags }) {
+    const ref = positionals[0];
+    if (!ref) throw new ArgError("Missing <fileId|url>");
+
+    const { fileId } = resolveFileRef(ref);
+    const comments = await listComments(fileId, Boolean(flags["include-resolved"]));
+    emitJson({ count: comments.length, comments });
+  },
+};
+
 export const docsGroup: CommandGroup = {
-  summary: "Google Docs operations (read, headings, create, update).",
-  subcommands: { read: docsRead, headings: docsHeadings, create: docsCreate, update: docsUpdate },
+  summary: "Google Docs operations (read, headings, create, update, comments).",
+  subcommands: {
+    read: docsRead,
+    headings: docsHeadings,
+    create: docsCreate,
+    update: docsUpdate,
+    comments: docsComments,
+  },
 };

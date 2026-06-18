@@ -20,6 +20,7 @@ gdrive search <query> [--type docs|sheets] [--page-size N] [--page-token TOKEN]
 gdrive meta   <fileId|url>
 gdrive docs read     <fileId|url> [--section "Heading"] [--json] [--no-images]
 gdrive docs headings <fileId|url> [--min N] [--max N]
+gdrive docs comments <fileId|url> [--include-resolved]
 gdrive docs create   --name "Title" [--from FILE]    (or pipe markdown on stdin)
 gdrive docs update   <fileId|url> [--from FILE]       (or pipe markdown on stdin)
 gdrive sheets read   <fileId|url> [--range A1:B10] [--csv|--tsv|--json]

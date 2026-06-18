@@ -15,6 +15,7 @@ layer, so the Drive/Docs/Sheets logic lives in exactly one place.
   - `drive.ts`: file metadata, search (name + full text), content read/export
   - `docs.ts`: heading outline, section extraction, embedded-image manifest, heading-anchor resolution
   - `write.ts`: create/replace Docs from Markdown (Drive import); local-image stripping
+  - `comments.ts`: list comments + reply threads via the Drive comments API
   - `sheets.ts`: range/tab reads via the Sheets values API; CSV/TSV serialization
   - `links.ts`: parse Google URLs / bare IDs into `{ fileId, headingId, docType }`
   - `env.ts`: config home resolution and `.env` loading (stdlib `process.loadEnvFile`)
